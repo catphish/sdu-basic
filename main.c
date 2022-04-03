@@ -1,7 +1,6 @@
 #include "stm32f103xb.h"
 
-void SystemInit (void)
-{
+void configure_system_clock() {
   // Enable HSE
   RCC->CR |= (uint32_t)0x00010000;
   // Wait for HSE to be stable
@@ -18,44 +17,64 @@ void SystemInit (void)
   RCC->CFGR |= 0x00000002;
   // Wait for SYSCLK to switch
   while((RCC->CFGR & 0x00000008) == 0);
+}
 
-  // Enable GPIOA, GPIOB, GPIOC
-  RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN;
-  // Enable AF IO
+void configure_three_phase_pwm() {
+  // Enable GPIOA and GPIOB clocks
+  RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN;
+  // Enable alternate function IO clock
   RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
-  // Enable TIM1, TIM3
+  // Enable TIM1 clock
   RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
-  RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
-  // Set PORTA modes.
-  GPIOA->CRL = GPIO_CRL_CNF6_1 | GPIO_CRL_CNF7_1;
-  GPIOA->CRH = GPIO_CRH_MODE8_0 | GPIO_CRH_MODE8_1 | GPIO_CRH_CNF8_1 | GPIO_CRH_MODE9_0 | GPIO_CRH_MODE9_1 | GPIO_CRH_CNF9_1 | GPIO_CRH_MODE10_0 | GPIO_CRH_MODE10_1 | GPIO_CRH_CNF10_1;
-  GPIOA->ODR = 0xFFFFFFFF;
-  // Set PORTB modes.
-  GPIOB->CRH = GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1 | GPIO_CRH_CNF13_1 | GPIO_CRH_MODE14_0 | GPIO_CRH_MODE14_1 | GPIO_CRH_CNF14_1 | GPIO_CRH_MODE15_0 | GPIO_CRH_MODE15_1 | GPIO_CRH_CNF15_1;
+  // Configure GPIOA pins 8,9,10 as AF push-pull output
+  GPIOA->CRH &= ~(GPIO_CRH_MODE8_Msk  | GPIO_CRH_CNF8_Msk);
+  GPIOA->CRH &= ~(GPIO_CRH_MODE9_Msk  | GPIO_CRH_CNF9_Msk);
+  GPIOA->CRH &= ~(GPIO_CRH_MODE10_Msk | GPIO_CRH_CNF10_Msk);
+  GPIOA->CRH |= GPIO_CRH_MODE8_0  | GPIO_CRH_MODE8_1  | GPIO_CRH_CNF8_1;
+  GPIOA->CRH |= GPIO_CRH_MODE9_0  | GPIO_CRH_MODE9_1  | GPIO_CRH_CNF9_1;
+  GPIOA->CRH |= GPIO_CRH_MODE10_0 | GPIO_CRH_MODE10_1 | GPIO_CRH_CNF10_1;
+  // Configure GPIOB pins 13,15,15 as AF push-pull output
+  GPIOB->CRH &= ~(GPIO_CRH_MODE13_Msk | GPIO_CRH_CNF13_Msk);
+  GPIOB->CRH &= ~(GPIO_CRH_MODE14_Msk | GPIO_CRH_CNF14_Msk);
+  GPIOB->CRH &= ~(GPIO_CRH_MODE15_Msk | GPIO_CRH_CNF15_Msk);
+  GPIOB->CRH |= GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1 | GPIO_CRH_CNF13_1;
+  GPIOB->CRH |= GPIO_CRH_MODE14_0 | GPIO_CRH_MODE14_1 | GPIO_CRH_CNF14_1;
+  GPIOB->CRH |= GPIO_CRH_MODE15_0 | GPIO_CRH_MODE15_1 | GPIO_CRH_CNF15_1;
 
-  // TIM1 is used to generate 3-phase PWM outputs
-
-  // Disable timer, clear all settings
+  // Disable TIM1, clear all settings
   TIM1->CR1 = 0;
   // No prescale
   TIM1->PSC = 0;
   // Count fo 0xFFF (12 bits), 17.5kHz
   TIM1->ARR = 0x0FFF;
-  // OUT1,2,3
-  TIM1->CCR1 = 0x0;
-  TIM1->CCR2 = 0x0;
-  TIM1->CCR3 = 0x0;
-  // Configure output comapre to PWM
+  // Set initial output states
+  TIM1->CCR1 = 0x400;
+  TIM1->CCR2 = 0x800;
+  TIM1->CCR3 = 0xA00;
+  // Configure PWM output compare
   TIM1->CCMR1 = TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;  
   TIM1->CCMR2 = TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
-  // Enable PWM output
   TIM1->CCER = TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE | TIM_CCER_CC3E | TIM_CCER_CC3NE;
   // Set deadtime
   TIM1->BDTR = TIM_BDTR_MOE | 108; // 108 cycles @ 72MHz = 1500ns
+  // Enable timer
   TIM1->CR1 |= TIM_CR1_CEN;
+}
 
-  // TIM3 is used to count encoder pulses
-  // TODO: enable digital noise filtering
+void configure_encoder_input() {
+  // Enable GPIOA clock
+  RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
+  // Enable alternate function IO clock
+  RCC->APB2ENR |= RCC_APB2ENR_AFIOEN;
+  // Enable TIM3 clock
+  RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+  // Configure PORTA pins 6,7 for AF input with pulls
+  GPIOA->CRL &= ~(GPIO_CRL_MODE6_Msk  | GPIO_CRL_CNF6_Msk);
+  GPIOA->CRL &= ~(GPIO_CRL_MODE7_Msk  | GPIO_CRL_CNF7_Msk);
+  GPIOA->CRL |= GPIO_CRL_CNF6_1;
+  GPIOA->CRL |= GPIO_CRL_CNF7_1;
+  // Configure GPIO6,GPIO7 with pull-up
+  GPIOA->ODR = (1<<6) | (1<<7);
 
   // Disable timer
   TIM3->CR1 = 0;
@@ -65,6 +84,19 @@ void SystemInit (void)
   TIM3->CCMR1 = TIM_CCMR1_CC1S_0 | TIM_CCMR1_CC2S_0;
   // Enable timer
   TIM3->CR1 |= TIM_CR1_CEN;
+  // TODO: enable digital noise filtering
+}
+
+void SystemInit (void)
+{
+  // Set system clock to 72MHz
+  configure_system_clock();
+
+  // Configure three phase PWM
+  configure_three_phase_pwm();
+
+  // Configure encoder input
+  configure_encoder_input();
 
   // TODO: Throttle ADC configuration
   // TODO: PWM configuration for current limit outputs
@@ -85,7 +117,7 @@ void pwm_interval() {
   // Cache encoder deltas to allow averaging
   encoder_deltas[encoder_delta_pos++] = TIM3->CNT;
   // Calculate sum of encoder deltas over previous 16 periods
-  uint16_t encoder_delta = encoder_deltas[encoder_delta_pos - 1] - encoder_deltas[encoder_delta_pos - 1 - 16]
+  uint16_t encoder_delta = encoder_deltas[encoder_delta_pos - 1] - encoder_deltas[encoder_delta_pos - 1 - 16];
   // Increment stator angle by the encoder delta. A full rotation is be 72 << 24, we scale down by 16.
   stator_angle += encoder_delta << 20;
 
