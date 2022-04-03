@@ -145,8 +145,8 @@ void SystemInit (void)
 }
 
 // Storage of previous encoder deltas
-uint16_t encoder_deltas[256];
-uint8_t encoder_delta_pos;
+uint16_t encoder_values[256];
+uint8_t encoder_value_pos;
 
 // One full rotation is 72 << 24 (1207959552)
 // This absurdly large  allows us to be reasonably precise without the need for FPU
@@ -156,9 +156,9 @@ uint32_t stator_angle;
 // required to generate the PWM sine wave outputs.
 void pwm_interval() {
   // Cache encoder deltas to allow averaging
-  encoder_deltas[encoder_delta_pos++] = TIM3->CNT;
+  encoder_deltas[encoder_value_pos++] = TIM3->CNT;
   // Calculate sum of encoder deltas over previous 16 periods
-  uint16_t encoder_delta = encoder_deltas[encoder_delta_pos - 1] - encoder_deltas[encoder_delta_pos - 1 - 16];
+  int16_t encoder_delta = encoder_values[encoder_value_pos - 1] - encoder_values[encoder_value_pos - 1 - 16];
   // Increment stator angle by the encoder delta. A full rotation is be 72 << 24, we scale down by 16.
   stator_angle += encoder_delta << 20;
 
