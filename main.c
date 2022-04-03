@@ -61,6 +61,44 @@ void configure_three_phase_pwm() {
   TIM1->CR1 |= TIM_CR1_CEN;
 }
 
+void configure_gpio() {
+  // Enable GPIOA, GPIOB, GPIOC clocks
+  RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN;
+
+  // Configure A1, floating input, ocur_in
+  GPIOA->CRL &= ~(GPIO_CRL_MODE1_Msk  | GPIO_CRL_CNF1_Msk);
+  GPIOA->CRL |= GPIO_CRL_CNF1_0;
+  // Configure A2, floating input, brake_in
+  GPIOA->CRL &= ~(GPIO_CRL_MODE2_Msk  | GPIO_CRL_CNF2_Msk);
+  GPIOA->CRL |= GPIO_CRL_CNF2_0;
+  // Configure A4, floating input, forward_in
+  GPIOA->CRL &= ~(GPIO_CRL_MODE4_Msk  | GPIO_CRL_CNF4_Msk);
+  GPIOA->CRL |= GPIO_CRL_CNF4_0;
+
+  // Configure B1, push-pull output, precharge_out
+  GPIOB->CRL &= ~(GPIO_CRL_MODE1_Msk  | GPIO_CRL_CNF1_Msk);
+  GPIOB->CRL |= GPIO_CRL_MODE1_0 | GPIO_CRL_MODE1_1;
+  // Configure B5, floating input, cruise_in
+  GPIOB->CRL &= ~(GPIO_CRL_MODE5_Msk  | GPIO_CRL_CNF5_Msk);
+  GPIOB->CRL |= GPIO_CRL_CNF5_0;
+  // Configure B6, floating input, start_in
+  GPIOB->CRL &= ~(GPIO_CRL_MODE6_Msk  | GPIO_CRL_CNF6_Msk);
+  GPIOB->CRL |= GPIO_CRL_CNF6_0;
+  // Configure B12, floating input, pwm_inhibit
+  GPIOB->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
+  GPIOB->CRH |= GPIO_CRH_CNF12_0;
+
+  // Configure C6, floating input, reverse_in
+  GPIOC->CRL &= ~(GPIO_CRL_MODE6_Msk  | GPIO_CRL_CNF6_Msk);
+  GPIOC->CRL |= GPIO_CRL_CNF6_0;
+  // Configure C12, push-pull output, led_out
+  GPIOB->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
+  GPIOB->CRH |= GPIO_CRH_MODE12_0 | GPIO_CRH_MODE12_1;
+  // Configure C13, push-pull output, dcsw_out
+  GPIOB->CRH &= ~(GPIO_CRH_MODE13_Msk  | GPIO_CRH_CNF13_Msk);
+  GPIOB->CRH |= GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1;
+}
+
 void configure_encoder_input() {
   // Enable GPIOA clock
   RCC->APB2ENR |= RCC_APB2ENR_IOPAEN;
@@ -97,6 +135,9 @@ void SystemInit (void)
 
   // Configure encoder input
   configure_encoder_input();
+
+  // Configure digital IO pins
+  configure_gpio();
 
   // TODO: Throttle ADC configuration
   // TODO: PWM configuration for current limit outputs
