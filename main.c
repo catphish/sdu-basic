@@ -40,6 +40,9 @@ void configure_three_phase_pwm() {
   GPIOB->CRH |= GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1 | GPIO_CRH_CNF13_1;
   GPIOB->CRH |= GPIO_CRH_MODE14_0 | GPIO_CRH_MODE14_1 | GPIO_CRH_CNF14_1;
   GPIOB->CRH |= GPIO_CRH_MODE15_0 | GPIO_CRH_MODE15_1 | GPIO_CRH_CNF15_1;
+  // Configure B12, floating input, pwm_inhibit
+  GPIOB->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
+  GPIOB->CRH |= GPIO_CRH_CNF12_0;
 
   // Disable TIM1, clear all settings
   TIM1->CR1 = 0;
@@ -47,7 +50,7 @@ void configure_three_phase_pwm() {
   TIM1->PSC = 0;
   // Count fo 0xFFF (12 bits), 17.5kHz
   TIM1->ARR = 0x0FFF;
-  // Set initial output states
+  // Set initial output states, these are only for testing
   TIM1->CCR1 = 0x400;
   TIM1->CCR2 = 0x800;
   TIM1->CCR3 = 0xA00;
@@ -55,10 +58,15 @@ void configure_three_phase_pwm() {
   TIM1->CCMR1 = TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;  
   TIM1->CCMR2 = TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
   TIM1->CCER = TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE | TIM_CCER_CC3E | TIM_CCER_CC3NE;
+
   // Set deadtime
-  TIM1->BDTR = TIM_BDTR_MOE | 108; // 108 cycles @ 72MHz = 1500ns
+  TIM1->BDTR = 108; // 108 cycles @ 72MHz = 1500ns
+  // Enable break on BKIN pin
+  TIM1->BDTR |= TIM_BDTR_BKE;
   // Enable timer
   TIM1->CR1 |= TIM_CR1_CEN;
+  // Enable output
+  TIM1->BDTR |= TIM_BDTR_MOE;
 }
 
 void configure_gpio() {
@@ -84,19 +92,16 @@ void configure_gpio() {
   // Configure B6, floating input, start_in
   GPIOB->CRL &= ~(GPIO_CRL_MODE6_Msk  | GPIO_CRL_CNF6_Msk);
   GPIOB->CRL |= GPIO_CRL_CNF6_0;
-  // Configure B12, floating input, pwm_inhibit
-  GPIOB->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
-  GPIOB->CRH |= GPIO_CRH_CNF12_0;
 
   // Configure C6, floating input, reverse_in
   GPIOC->CRL &= ~(GPIO_CRL_MODE6_Msk  | GPIO_CRL_CNF6_Msk);
   GPIOC->CRL |= GPIO_CRL_CNF6_0;
   // Configure C12, push-pull output, led_out
-  GPIOB->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
-  GPIOB->CRH |= GPIO_CRH_MODE12_0 | GPIO_CRH_MODE12_1;
+  GPIOC->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
+  GPIOC->CRH |= GPIO_CRH_MODE12_0 | GPIO_CRH_MODE12_1;
   // Configure C13, push-pull output, dcsw_out
-  GPIOB->CRH &= ~(GPIO_CRH_MODE13_Msk  | GPIO_CRH_CNF13_Msk);
-  GPIOB->CRH |= GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1;
+  GPIOC->CRH &= ~(GPIO_CRH_MODE13_Msk  | GPIO_CRH_CNF13_Msk);
+  GPIOC->CRH |= GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1;
 }
 
 void configure_encoder_input() {
@@ -141,7 +146,6 @@ void SystemInit (void)
 
   // TODO: Throttle ADC configuration
   // TODO: PWM configuration for current limit outputs
-  // TODO: Digital inputs for direction and error states
 }
 
 // Storage of previous encoder deltas
@@ -156,7 +160,7 @@ uint32_t stator_angle;
 // required to generate the PWM sine wave outputs.
 void pwm_interval() {
   // Cache encoder values to allow delta calcuation over any period
-  encoder_deltas[encoder_value_pos++] = TIM3->CNT;
+  encoder_values[encoder_value_pos++] = TIM3->CNT;
   // Calculate the delta over the previous 16 periods
   int16_t encoder_delta = encoder_values[encoder_value_pos - 1] - encoder_values[encoder_value_pos - 1 - 16];
   // Increment stator angle by the encoder delta. A full rotation is be 72 << 24, we scale down by 16.
