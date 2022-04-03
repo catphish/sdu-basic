@@ -155,9 +155,9 @@ uint32_t stator_angle;
 // This function runs at 17.5kHz intervals and handles all calculations
 // required to generate the PWM sine wave outputs.
 void pwm_interval() {
-  // Cache encoder deltas to allow averaging
+  // Cache encoder values to allow delta calcuation over any period
   encoder_deltas[encoder_value_pos++] = TIM3->CNT;
-  // Calculate sum of encoder deltas over previous 16 periods
+  // Calculate the delta over the previous 16 periods
   int16_t encoder_delta = encoder_values[encoder_value_pos - 1] - encoder_values[encoder_value_pos - 1 - 16];
   // Increment stator angle by the encoder delta. A full rotation is be 72 << 24, we scale down by 16.
   stator_angle += encoder_delta << 20;
