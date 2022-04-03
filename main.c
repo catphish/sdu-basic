@@ -130,6 +130,74 @@ void configure_encoder_input() {
   // TODO: enable digital noise filtering
 }
 
+uint16_t adc_data[3];
+
+void configure_adc() {
+  // Enable GPIOA, GPIOB, GPIOC clocks
+  RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN;
+  // Enable ADC1 clock
+  RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+  // Enable DMA1 clock
+  RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+  // Configure A5, analog input, il1
+  GPIOA->CRL &= ~(GPIO_CRL_MODE5_Msk  | GPIO_CRL_CNF5_Msk);
+  // Configure B0, analog input, il2
+  GPIOB->CRL &= ~(GPIO_CRL_MODE0_Msk  | GPIO_CRL_CNF0_Msk);
+  // Configure C1, analog input, throttle
+  GPIOC->CRL &= ~(GPIO_CRL_MODE1_Msk  | GPIO_CRL_CNF1_Msk);
+  // Set ADC clock prescaler to 6 (12MHz)
+  RCC->CFGR |= (2<<14);
+  
+  // Set scan mode
+  ADC1->CR1 = ADC_CR1_SCAN;
+    // Set continuous conversion mode
+  ADC1->CR2 = ADC_CR2_CONT;
+  // SWSTART to trigger conversions
+  ADC1->CR2 |= ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_2;
+  
+  // Set the sampling Time for the channels to 41.5 cycles
+  // Total sampling time is 12MHz / (41.5+12.5) / 3 = ~74kHz
+  ADC1->SMPR2 = ADC_SMPR2_SMP0_2;
+  ADC1->SMPR2 = ADC_SMPR2_SMP1_2;
+  ADC1->SMPR2 = ADC_SMPR2_SMP2_2;
+  // Set the sequence length to 3 channels
+  ADC1->SQR1 |= (2<<20);
+  // Enable DMA for ADC
+  ADC1->CR2 |= (1<<8);
+  // Select channels
+  ADC1->SQR3 = (5<<0 | 8<<5 | 11<<10); // Channels 5(A5), 8(B0), 11(PC1)
+  // Enable ADC and wait for settle
+  ADC1->CR2 |= 1<<0;
+  volatile uint32_t delay = 10000;
+  while (delay--);
+
+  //  Reset DMA config
+  DMA1_Channel1->CCR = 0;
+  // Enable the circular mode (CIRC)
+  DMA1_Channel1->CCR |= DMA_CCR_CIRC;
+  // Enable the Memory Increment (MINC)
+  DMA1_Channel1->CCR |= DMA_CCR_MINC;
+  // Set the Peripheral data size (PSIZE) to 16 bits
+  DMA1_Channel1->CCR |= DMA_CCR_PSIZE_0;
+  // 5. Set the Memory data size (MSIZE) to 16 bits
+  DMA1_Channel1->CCR |= DMA_CCR_MSIZE_0;
+  // Set the total size of the transfer (3 words)
+  DMA1_Channel1->CNDTR = 3;
+  // Source address is ADC data
+  DMA1_Channel1->CPAR = (uint32_t)&ADC1->DR;
+  // Destination address in memory
+  DMA1_Channel1->CMAR = (uint32_t)adc_data;
+  // Enable the DMA Stream
+  DMA1_Channel1->CCR |= DMA_CCR_EN;
+
+  // Clear status register
+  ADC1->SR = 0;
+  // Enable external trigger
+  ADC1->CR2 |= ADC_CR2_EXTTRIG;
+  // Start conversions!
+  ADC1->CR2 |= ADC_CR2_SWSTART;
+}
+
 void SystemInit (void)
 {
   // Set system clock to 72MHz
@@ -144,7 +212,9 @@ void SystemInit (void)
   // Configure digital IO pins
   configure_gpio();
 
-  // TODO: Throttle ADC configuration
+  // Set up ADC, currently reads il21, il2, and throttle
+  configure_adc();
+
   // TODO: PWM configuration for current limit outputs
 }
 
