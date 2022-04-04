@@ -44,8 +44,8 @@ void configure_ocurlim_pwm() {
   // Count fo 0xFFF (12 bits), 17.5kHz
   TIM4->ARR = 0x0FFF;
   // Set initial output states, these are only for testing
-  TIM4->CCR2 = 2047 - 100;
-  TIM4->CCR3 = 2047 + 100;
+  TIM4->CCR2 = 2047 - 150;
+  TIM4->CCR3 = 2047 + 150;
   // Configure PWM output compare
   TIM4->CCMR1 = TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
   TIM4->CCMR2 = TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
@@ -98,7 +98,7 @@ void configure_three_phase_pwm() {
   // Enable reload interrupt
   TIM1->DIER |= TIM_DIER_UIE;
   // Enable break on BKIN pin
-  TIM1->BDTR |= TIM_BDTR_BKE;
+  TIM1->BDTR |= TIM_BDTR_BKE | TIM_BDTR_BKP;
   // Enable timer
   TIM1->CR1 |= TIM_CR1_CEN;
   // Enable output
@@ -137,6 +137,7 @@ void configure_gpio() {
   // Configure C12, push-pull output, led_out
   GPIOC->CRH &= ~(GPIO_CRH_MODE12_Msk  | GPIO_CRH_CNF12_Msk);
   GPIOC->CRH |= GPIO_CRH_MODE12_0 | GPIO_CRH_MODE12_1;
+  GPIOC->ODR |= 1<<12;
   // Configure C13, push-pull output, dcsw_out
   GPIOC->CRH &= ~(GPIO_CRH_MODE13_Msk  | GPIO_CRH_CNF13_Msk);
   GPIOC->CRH |= GPIO_CRH_MODE13_0 | GPIO_CRH_MODE13_1;

@@ -2,10 +2,9 @@
 #include "system.h"
 #include "table.h"
 
-#define POT_MIN 1000
-#define POT_MAX 4095
+#define POT_MIN 100
+#define POT_MAX 4000
 #define SLIP_MAX 5.f
-#define FWEAK 5.f
 
 // Storage of previous encoder deltas
 uint16_t encoder_values[256];
@@ -52,27 +51,29 @@ void TIM1_UP_TIM16_IRQHandler(void) {
   // Cache encoder values to allow delta calcuation over any period
   encoder_values[encoder_value_pos++] = TIM3->CNT;
   // Calculate the delta over the previous 16 periods
-  uint8_t ofs1 = encoder_value_pos - 1;
-  uint8_t ofs2 = encoder_value_pos - 1 - 16;
-  int16_t encoder_delta = encoder_values[ofs1] - encoder_values[ofs2];
+  // This value is proportional to RPM so can be converted when required
+  int16_t encoder_delta = encoder_values[(uint8_t)(encoder_value_pos - 1)] - encoder_values[(uint8_t)(encoder_value_pos - 1 - 16)];
   // Calculate the stator increment based on rotor speed and throttle requested slip
   int32_t increment = 0;
   increment += encoder_delta * 3728270;               // 2^32 / 72 / 16 = 3728270
   increment += get_throttle() * SLIP_MAX * 245426.7f; // 2^32 / 17500 = 245426.7
   // Apply to stator orientation
   stator_angle += increment;
-  // Calculate voltage
-  float voltage = (float)increment / 245426.f / FWEAK;
-  if(voltage >  1.f) voltage =  1.f;
-  if(voltage < -1.f) voltage = -1.f;
-  // Output the PWM
-  TIM1->CCR1 = (voltage * table1[stator_angle >> 19]) * 2047.f + 2047.f;
-  TIM1->CCR2 = (voltage * table2[stator_angle >> 19]) * 2047.f + 2047.f;
-  TIM1->CCR3 = (voltage * table3[stator_angle >> 19]) * 2047.f + 2047.f;
 
+  // TODO: Calculate voltage!
+  float voltage = 2040.f;
+
+  // Output the PWM
+  TIM1->CCR1 = (int16_t)(voltage * table1[stator_angle >> 19]) + 2047;
+  TIM1->CCR2 = (int16_t)(voltage * table2[stator_angle >> 19]) + 2047;
+  TIM1->CCR3 = (int16_t)(voltage * table3[stator_angle >> 19]) + 2047;
+
+  // Illuminate LED if fault has occurred
+  if((TIM1->BDTR & TIM_BDTR_MOE) == 0) {
+    GPIOC->ODR &= ~(1<<12);
+  }
   // TODO: Add a small fixed slip towards zero to ensure the neutral state is torque toward stationary
   // TODO: Direction input
-  // TODO: Current limit output
 
   // Start ADC conversions!
   ADC1->CR2 |= ADC_CR2_SWSTART;
