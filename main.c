@@ -5,7 +5,7 @@
 #define POT_MIN 1000
 #define POT_MAX 4095
 #define SLIP_MAX 5.f
-#define FWEAK 220.f
+#define FWEAK 5.f
 
 // Storage of previous encoder deltas
 uint16_t encoder_values[256];
@@ -31,7 +31,7 @@ void SystemInit (void)
   // Configure ADC, currently reads il21, il2, and throttle
   configure_adc();
   // Configure overcurrent limit PWM output
-  void configure_ocurlim_pwm();
+  configure_ocurlim_pwm();
 }
 
 // Fetch the throttle input and normalize to 1.0
@@ -48,11 +48,13 @@ float get_throttle() {
 
 // This function runs at 17.5kHz intervals and handles all calculations
 // required to generate the PWM sine wave outputs.
-void pwm_interval() {
+void TIM1_UP_TIM16_IRQHandler(void) {
   // Cache encoder values to allow delta calcuation over any period
   encoder_values[encoder_value_pos++] = TIM3->CNT;
   // Calculate the delta over the previous 16 periods
-  int16_t encoder_delta = encoder_values[encoder_value_pos - 1] - encoder_values[encoder_value_pos - 1 - 16];
+  uint8_t ofs1 = encoder_value_pos - 1;
+  uint8_t ofs2 = encoder_value_pos - 1 - 16;
+  int16_t encoder_delta = encoder_values[ofs1] - encoder_values[ofs2];
   // Calculate the stator increment based on rotor speed and throttle requested slip
   int32_t increment = 0;
   increment += encoder_delta * 3728270;               // 2^32 / 72 / 16 = 3728270
@@ -61,12 +63,12 @@ void pwm_interval() {
   stator_angle += increment;
   // Calculate voltage
   float voltage = (float)increment / 245426.f / FWEAK;
-  if(voltage >  1) voltage =  1;
-  if(voltage < -1) voltage = -1;
+  if(voltage >  1.f) voltage =  1.f;
+  if(voltage < -1.f) voltage = -1.f;
   // Output the PWM
-  TIM1->CCR1 = (voltage * table1[stator_angle >> 19]) * 2047 + 2047;
-  TIM1->CCR2 = (voltage * table2[stator_angle >> 19]) * 2047 + 2047;
-  TIM1->CCR3 = (voltage * table3[stator_angle >> 19]) * 2047 + 2047;
+  TIM1->CCR1 = (voltage * table1[stator_angle >> 19]) * 2047.f + 2047.f;
+  TIM1->CCR2 = (voltage * table2[stator_angle >> 19]) * 2047.f + 2047.f;
+  TIM1->CCR3 = (voltage * table3[stator_angle >> 19]) * 2047.f + 2047.f;
 
   // TODO: Add a small fixed slip towards zero to ensure the neutral state is torque toward stationary
   // TODO: Direction input
@@ -75,6 +77,8 @@ void pwm_interval() {
   // Start ADC conversions!
   ADC1->CR2 |= ADC_CR2_SWSTART;
 
+  // Clear interrupt
+  TIM1->SR = ~TIM_SR_UIF;
 }
 
 int main() {
