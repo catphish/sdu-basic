@@ -49,21 +49,23 @@ float get_throttle() {
 // This function runs at 17.5kHz intervals and handles all calculations
 // required to generate the PWM sine wave outputs.
 void TIM1_UP_TIM16_IRQHandler(void) {
-  // Cache encoder values to allow delta calcuation over any period
-  encoder_values[encoder_value_pos++] = TIM3->CNT;
-  // Calculate the delta over the previous 255 periods (14.47ms moving average)
+  uint16_t encoder_value = TIM3->CNT;
+  // Calculate the delta over the previous 256 periods (14.6ms moving average)
+  // Subtract oldest value from current value
   // This value is proportional to RPM so can be converted when required
-  int16_t encoder_delta = encoder_values[(uint8_t)(encoder_value_pos - 1)] - encoder_values[encoder_value_pos];
+  int16_t encoder_delta = encoder_value - encoder_values[encoder_value_pos];
+  // Store value for future calculations
+  encoder_values[encoder_value_pos++] = TIM3->CNT;
   // Calculate the stator increment based on rotor speed and throttle requested slip
   int32_t increment = 0;
-  increment += encoder_delta * 233930;                // 2^32 / 72 / 255 = 3728270
+  increment += encoder_delta * 233016;                // 2^32 / 72 / 256 = 233016
   increment += get_throttle() * SLIP_MAX * 245426.7f; // 2^32 / 17500 = 245426.7
   // Apply to stator orientation
   stator_angle += increment;
 
   // Calculate voltage (sine amplitude)
-  // Multiple by full PWM scale (3850), divide by full-voltage frequency (FWEAK) and units per Hz (245426.7)
-  float voltage = (float)increment * 3850.f / 245426.7f / FWEAK;
+  // Multiple by full PWM scale (+/-1935), divide by full-voltage frequency (FWEAK) and units per Hz (245426.7)
+  float voltage = (float)increment * 1935.f / 245426.7f / FWEAK;
 
   // Output the PWM
   TIM1->CCR1 = (int16_t)(voltage * table1[stator_angle >> 19]) + 2047;
