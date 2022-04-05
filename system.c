@@ -24,7 +24,7 @@ void configure_system_clock() {
   while((RCC->CFGR & 0x00000008) == 0);
 }
 
-void configure_ocurlim_pwm() {
+void configure_ocurlim_pwm(uint16_t offset, uint16_t limit) {
   // Enable GPIOB clocks
   RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN;
   // Enable alternate function IO clock
@@ -43,9 +43,9 @@ void configure_ocurlim_pwm() {
   TIM4->PSC = 0;
   // Count fo 0xFFF (12 bits), 17.5kHz
   TIM4->ARR = 0x0FFF;
-  // Set initial output states, these are only for testing
-  TIM4->CCR2 = 2047 - 150;
-  TIM4->CCR3 = 2047 + 150;
+  // Set output states, units are believed to be 1.5 per amp
+  TIM4->CCR2 = offset - limit;
+  TIM4->CCR3 = offset + limit;
   // Configure PWM output compare
   TIM4->CCMR1 = TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
   TIM4->CCMR2 = TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
