@@ -229,4 +229,8 @@ void configure_adc() {
   ADC1->SR = 0;
   // Enable external trigger
   ADC1->CR2 |= ADC_CR2_EXTTRIG;
+  // Enable continuous conversion
+  ADC1->CR2 |= ADC_CR2_CONT;
+  // Start conversions
+  ADC1->CR2 |= ADC_CR2_SWSTART;
 }

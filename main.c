@@ -5,6 +5,7 @@
 #define POT_MIN 100
 #define POT_MAX 4000
 #define SLIP_MAX 5.f
+#define FWEAK 180.f;
 
 // Storage of previous encoder deltas
 uint16_t encoder_values[256];
@@ -50,18 +51,19 @@ float get_throttle() {
 void TIM1_UP_TIM16_IRQHandler(void) {
   // Cache encoder values to allow delta calcuation over any period
   encoder_values[encoder_value_pos++] = TIM3->CNT;
-  // Calculate the delta over the previous 16 periods
+  // Calculate the delta over the previous 255 periods (14.47ms moving average)
   // This value is proportional to RPM so can be converted when required
-  int16_t encoder_delta = encoder_values[(uint8_t)(encoder_value_pos - 1)] - encoder_values[(uint8_t)(encoder_value_pos - 1 - 16)];
+  int16_t encoder_delta = encoder_values[(uint8_t)(encoder_value_pos - 1)] - encoder_values[encoder_value_pos];
   // Calculate the stator increment based on rotor speed and throttle requested slip
   int32_t increment = 0;
-  increment += encoder_delta * 3728270;               // 2^32 / 72 / 16 = 3728270
+  increment += encoder_delta * 233930;                // 2^32 / 72 / 255 = 3728270
   increment += get_throttle() * SLIP_MAX * 245426.7f; // 2^32 / 17500 = 245426.7
   // Apply to stator orientation
   stator_angle += increment;
 
-  // TODO: Calculate voltage!
-  float voltage = 2040.f;
+  // Calculate voltage (sine amplitude)
+  // Multiple by full PWM scale (3850), divide by full-voltage frequency (FWEAK) and units per Hz (245426.7)
+  float voltage = (float)increment * 3850.f / 245426.7f / FWEAK;
 
   // Output the PWM
   TIM1->CCR1 = (int16_t)(voltage * table1[stator_angle >> 19]) + 2047;
@@ -74,9 +76,6 @@ void TIM1_UP_TIM16_IRQHandler(void) {
   }
   // TODO: Add a small fixed slip towards zero to ensure the neutral state is torque toward stationary
   // TODO: Direction input
-
-  // Start ADC conversions!
-  ADC1->CR2 |= ADC_CR2_SWSTART;
 
   // Clear interrupt
   TIM1->SR = ~TIM_SR_UIF;
