@@ -56,13 +56,9 @@ float get_throttle() {
 void TIM1_UP_TIM16_IRQHandler(void) {
   uint16_t encoder_value = TIM3->CNT;
   // Calculate the delta over the previous 256 periods (14.6ms moving average)
-  // Subtract oldest value from current value
+  // by subtractng the oldest value from current value
   // This value is proportional to RPM: 1.053257143 = 1Hz
   int16_t encoder_delta = encoder_value - encoder_values[encoder_value_pos];
-  // Generate a signal 1Hz slower than the input to generate some natural braking
-  int16_t encoder_delta_braked = 0;
-  if(encoder_delta > 0) encoder_delta_braked = encoder_delta - 1;
-  if(encoder_delta < 0) encoder_delta_braked = encoder_delta + 1;
 
   // Store value for future calculations
   encoder_values[encoder_value_pos++] = encoder_value;
@@ -71,7 +67,7 @@ void TIM1_UP_TIM16_IRQHandler(void) {
   // In the calculations below 2^^32 is one full sine wave, 72 is the number of pulses
   // from the encoder per sine wave, 256 is the number of cycles to average data, and
   // 17500 is the PWM frequency.
-  increment += encoder_delta_braked * 233016;         // 2^32 / 72 / 256 = 233016
+  increment += encoder_delta * 233016;         // 2^32 / 72 / 256 = 233016
   increment += get_throttle() * SLIP_MAX * 245426.7f; // 2^32 / 17500 = 245426.7
   // Apply to stator orientation
   stator_angle += increment;
