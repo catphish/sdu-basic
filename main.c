@@ -65,7 +65,7 @@ void TIM1_UP_TIM16_IRQHandler(void) {
   if(encoder_delta < 0) encoder_delta_braked = encoder_delta + 1;
 
   // Store value for future calculations
-  encoder_values[encoder_value_pos++] = TIM3->CNT;
+  encoder_values[encoder_value_pos++] = encoder_value;
   // Calculate the stator increment based on rotor speed and throttle requested slip
   int32_t increment = 0;
   // In the calculations below 2^^32 is one full sine wave, 72 is the number of pulses
