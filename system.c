@@ -3,7 +3,7 @@
 #include "stm32f103xb.h"
 
 // Data from the ADC {il1, il2, throttle}
-uint16_t adc_data[3];
+volatile uint16_t adc_data[3];
 
 void configure_system_clock() {
   // Enable HSE
@@ -24,7 +24,13 @@ void configure_system_clock() {
   while((RCC->CFGR & 0x00000008) == 0);
 }
 
-void configure_ocurlim_pwm(uint16_t offset, uint16_t limit) {
+void configure_ocurlim_pwm(uint16_t limit) {
+  // Calculate current sensor offset
+  while(!adc_data[1]); // Wait for data from ADC
+  // Give time to settle
+  volatile uint32_t delay = 1000000; while (delay--);
+  // Calclate offset
+  uint16_t offset = (adc_data[0] + adc_data[1]) >> 1;
   // Enable GPIOB clocks
   RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN;
   // Enable alternate function IO clock
@@ -97,14 +103,12 @@ void configure_three_phase_pwm() {
   TIM1->BDTR = 108; // 108 cycles @ 72MHz = 1500ns
   // Enable reload interrupt
   TIM1->DIER |= TIM_DIER_UIE;
-  // Enable break on BKIN pin
-  TIM1->BDTR |= TIM_BDTR_BKE | TIM_BDTR_BKP;
-  // Enable timer
-  TIM1->CR1 |= TIM_CR1_CEN;
-  // Enable output
-  TIM1->BDTR |= TIM_BDTR_MOE;
   // Global interrupt config
   NVIC->ISER[0] |= (1 << TIM1_UP_TIM16_IRQn);
+  // Enable timer
+  TIM1->CR1 |= TIM_CR1_CEN;
+  // Clear error conditions
+  TIM1->SR = ~TIM_SR_BIF;
 }
 
 void configure_gpio() {
